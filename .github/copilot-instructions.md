@@ -1,6 +1,6 @@
 ## Quick orientation
 
-This repository contains ESPHome device configurations (YAML) for an M5Stack Atom Echo voice assistant device. The main configs live under `code/` (for example `code/m5stack-atom-echo-latest.yaml`). Use these files as the single source of truth for device pin mappings, audio pipeline, and wake-word logic.
+This repository contains ESPHome device configurations (YAML) for an M5Stack Atom Echo voice assistant device. The main configs live under `code/` (for example `code/m5stack-atom-echo-bbc74c.yaml`). Use these files as the single source of truth for device pin mappings, audio pipeline, and wake-word logic.
 
 ## Big-picture architecture
 
@@ -26,18 +26,18 @@ This repository contains ESPHome device configurations (YAML) for an M5Stack Ato
 - Install/run ESPhome (Python/pip):
   - pip install 'esphome>=2025.5.0'
 - Validate & compile a YAML:
-  - esphome compile code/m5stack-atom-echo-latest.yaml
+  - esphome compile code/m5stack-atom-echo-bbc74c.yaml
 - Build & upload (serial/OTA):
-  - esphome run code/m5stack-atom-echo-latest.yaml
-  - esphome upload code/m5stack-atom-echo-latest.yaml --device <ip_or_serial>
+  - esphome run code/m5stack-atom-echo-bbc74c.yaml
+  - esphome upload code/m5stack-atom-echo-bbc74c.yaml --device <ip_or_serial>
 - View logs / debug:
-  - esphome logs code/m5stack-atom-echo-latest.yaml
+  - esphome logs code/m5stack-atom-echo-bbc74c.yaml
 
 Notes: The YAML sets `min_version: 2025.5.0` under `esphome:`. Use an ESPhome CLI or Docker image that satisfies this version.
 
 ## Files to inspect for common edits
 
-- `code/m5stack-atom-echo-latest.yaml` — primary example; change pins, I2S settings, mic/speaker config, and wake-word models here.
+- `code/m5stack-atom-echo-bbc74c.yaml` — primary example; change pins, I2S settings, mic/speaker config, and wake-word models here.
 - Other variants in `orignal_code/` (e.g. `-ww.yaml`, `-wake.yaml`) show alternative configurations and are useful references when adding features.
 
 ## Helpful examples to follow

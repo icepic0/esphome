@@ -1,5 +1,5 @@
 substitutions:
-  name: m5stack-atom-echo-bbc74c
+  name: atom-voice-bbc74c
   friendly_name: M5Stack Atom Echo bbc74c
 
 esphome:

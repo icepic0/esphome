@@ -7,6 +7,11 @@ This repository contains ESPHome device configurations (YAML) for an M5Stack Ato
 - Firmware: ESPHome YAML describes a single ESP32-based device (board: `m5stack-atom`) using the `esp-idf` framework. The device uses I2S for microphone + speaker, and the `voice_assistant` and `micro_wake_word` components for wake-word + STT/TTS flows.
 - Integrations: `api:` exposes an ESPhome API for Home Assistant; `ota:` enables over-the-air updates; `wifi:` + `captive_portal:` support initial setup. The device can run wake-word either on-device or delegated to Home Assistant (see the `select` entity `wake_word_engine_location`).
 - Key flows: announcements stop the wake-word (see `on_announcement`), scripts `start_wake_word` / `stop_wake_word` coordinate starting/stopping based on `wake_word_engine_location`, and `voice_assistant.on_*` handlers toggle LEDs and control timers.
+- Audio: I2S microphone input is configured with `i2s_audio` and `i2s_microphone`, while speaker output uses `i2s_audio` + `external_speaker`. Wake-word models are defined under `micro_wake_word.models:`.
+- LED: The built-in RGB LED is controlled via `fastled_clockless` and updated in various event handlers (wake-word detected, TTS playing, etc).
+- Buttons: The two built-in buttons are configured with `binary_sensor` entries and trigger actions like resetting the LED or toggling wake-word.
+- Timers: A `timer` component is used to manage delayed actions (e.g. turning off the LED after TTS playback).
+
 
 ## Project-specific conventions and patterns
 

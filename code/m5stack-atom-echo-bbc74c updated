@@ -8,13 +8,6 @@ esphome:
   friendly_name: ${friendly_name}
   min_version: 2025.5.0
 
-# Add globals to track wake word state
-globals:
-  - id: wake_word_enabled
-    type: bool
-    initial_value: 'false'
-    restore_value: true
-
 esp32:
   board: m5stack-atom
   cpu_frequency: 240MHz
@@ -93,7 +86,7 @@ media_player:
     on_idle:
       # Do not automatically start wake-word detection. Use the physical
       # button (push-to-talk) to start listening instead.
-      - light.turn_off: led
+      - script.execute: reset_led
 
 voice_assistant:
   id: va
@@ -138,9 +131,7 @@ voice_assistant:
     # Restart only mWW if enabled; streaming wake words automatically restart
     - if:
         condition:
-         - and:
-            - lambda: return id(wake_word_engine_location).state == "On device";
-            - lambda: return id(wake_word_enabled);
+          - lambda: return id(wake_word_engine_location).state == "On device";
         then:
           - wait_until:
               - and:
@@ -148,9 +139,9 @@ voice_assistant:
                       voice_assistant.is_running:
                   - not:
                       speaker.is_playing:
+          - lambda: id(va).set_use_wake_word(false);
           - micro_wake_word.start:
-          - delay: 500ms
-          - script.execute: reset_led
+    - script.execute: reset_led
   on_error:
     - light.turn_on:
         id: led
@@ -216,26 +207,17 @@ binary_sensor:
         - if:
             condition:
               or:
-                - micro_wake_word.is_running
+                - micro_wake_word.is_running:
                 - and:
                   - lambda: return id(wake_word_engine_location).state == "In Home Assistant";
-                  - voice_assistant.is_running
+                  - voice_assistant.is_running:
             then:
-              # Disable wake-word (stop either mWW or HA streaming) and announce it
-              - lambda: |-
-                  id(va).set_use_wake_word(false);
-                  id(wake_word_enabled) = false;
               - script.execute: stop_wake_word
-              - logger.log: "Wake word detection disabled (announced)"
-              - light.turn_off: led
+              - logger.log: "Wake word detection disabled"
+              - script.execute: reset_led
             else:
-              # Enable wake-word (either start mWW or set VA to streaming) and announce it
-              - lambda: |-
-                  id(va).set_use_wake_word(true);
-                  id(wake_word_enabled) = true;
               - script.execute: start_wake_word
-              - logger.log: "Wake word detection enabled (announced)"
-              - delay: 200ms
+              - logger.log: "Wake word detection enabled"
               - script.execute: reset_led
 
     on_press:
@@ -311,7 +293,6 @@ script:
           condition:
             - lambda: return id(wake_word_engine_location).state == "On device";
             - switch.is_on: use_listen_light
-            - micro_wake_word.is_running:
           then:
             - light.turn_on:
                 id: led
@@ -344,11 +325,8 @@ script:
                   - voice_assistant.is_running:
               - lambda: return id(wake_word_engine_location).state == "On device";
           then:
-          # disabled unitll I can figure out why this keeps starting wake word detection
-            #- lambda: id(va).set_use_wake_word(false);
-            #- micro_wake_word.start:
-            - delay: 500ms
-            - script.execute: reset_led
+            - lambda: id(va).set_use_wake_word(false);
+            - micro_wake_word.start:
       - if:
           condition:
             and:
@@ -366,14 +344,11 @@ script:
           then:
             - lambda: id(va).set_use_wake_word(false);
             - voice_assistant.stop:
-            - light.turn_off: led
       - if:
           condition:
             lambda: return id(wake_word_engine_location).state == "On device";
           then:
             - micro_wake_word.stop:
-            - light.turn_off: led
-
 
 switch:
   - platform: template
@@ -431,24 +406,20 @@ select:
     on_value:
       - if:
           condition:
-            - lambda: return id(wake_word_engine_location).state == "In Home Assistant";
+            lambda: return x == "In Home Assistant";
           then:
             - micro_wake_word.stop:
             - delay: 500ms
-            - lambda: |-
-                id(va).set_use_wake_word(true);
-                id(wake_word_enabled) = true;
+            - lambda: id(va).set_use_wake_word(true);
             - voice_assistant.start_continuous:
       - if:
           condition:
             lambda: return x == "On device";
           then:
-            - lambda: |-
-                id(va).set_use_wake_word(false);
-                id(wake_word_enabled) = false;
+            - lambda: id(va).set_use_wake_word(false);
             - voice_assistant.stop:
             - delay: 500ms
-            #- micro_wake_word.start:
+            - micro_wake_word.start:
 
 micro_wake_word:
   on_wake_word_detected:

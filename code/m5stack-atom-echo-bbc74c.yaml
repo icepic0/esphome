@@ -1,81 +1,95 @@
+# Basic device identification and name configuration
 substitutions:
-  name: atom-voice-bbc74c
-  friendly_name: M5Stack Atom Echo bbc74c
+  name: atom-voice-bbc74c  # Used as base name for device
+  friendly_name: M5Stack Atom Echo bbc74c  # Human-readable name shown in Home Assistant
 
+# Core ESPHome configuration
 esphome:
-  name: ${name}
-  name_add_mac_suffix: false
+  name: ${name}  # Device name from substitutions
+  name_add_mac_suffix: false  # Don't append MAC address to device name
   friendly_name: ${friendly_name}
-  min_version: 2025.5.0
+  min_version: 2025.5.0  # Minimum required ESPHome version
 
-# Add globals to track wake word state
+# Global variable declarations - persist state between reboots
 globals:
   - id: wake_word_enabled
     type: bool
     initial_value: 'false'
-    restore_value: true
+    restore_value: false
 
+# ESP32 hardware configuration
 esp32:
-  board: m5stack-atom
-  cpu_frequency: 240MHz
+  board: m5stack-atom  # Specific board type
+  cpu_frequency: 240MHz  # Set CPU to maximum frequency for best performance
   framework:
-    type: esp-idf
+    type: esp-idf  # Use ESP-IDF framework for advanced features
 
+# Enable logging for debugging
 logger:
+
+# Enable Home Assistant API integration
 api:
 
+# Over-the-air update support
 ota:
   - platform: esphome
     id: ota_esphome
 
+# WiFi configuration with fallback access point
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  ap:
+  ap:  # Fallback access point if WiFi connection fails
 
+# Enable captive portal for initial setup
 captive_portal:
 
+# Factory reset button configuration
 button:
   - platform: factory_reset
     id: factory_reset_btn
-    name: Factory reset
+    name: Factory reset  # Long press to reset device to factory settings
 
+# I2S bus configuration for audio
 i2s_audio:
-  - id: i2s_audio_bus
-    i2s_lrclk_pin: GPIO33
-    i2s_bclk_pin: GPIO19
+  - id: i2s_audio_bus  # Shared I2S bus for both mic and speaker
+    i2s_lrclk_pin: GPIO33  # Left/Right clock signal
+    i2s_bclk_pin: GPIO19   # Bit clock signal
 
+# Microphone configuration using I2S
 microphone:
   - platform: i2s_audio
     id: echo_microphone
-    i2s_din_pin: GPIO23
-    adc_type: external
-    pdm: true
-    sample_rate: 16000
-    correct_dc_offset: true
+    i2s_din_pin: GPIO23  # Data input pin
+    adc_type: external   # External ADC on the M5Stack
+    pdm: true           # PDM (Pulse Density Modulation) microphone
+    sample_rate: 16000  # 16kHz sampling rate for voice
+    correct_dc_offset: true  # Remove DC offset from audio
 
+# Speaker configuration using I2S
 speaker:
   - platform: i2s_audio
     id: echo_speaker
-    i2s_dout_pin: GPIO22
-    dac_type: external
+    i2s_dout_pin: GPIO22  # Data output pin
+    dac_type: external    # External DAC on the M5Stack
     bits_per_sample: 16bit
-    sample_rate: 16000
-    channel: stereo  # The Echo has poor playback audio quality when using mon audio
-    buffer_duration: 60ms
+    sample_rate: 16000    # Match microphone sample rate
+    channel: stereo       # The Echo has poor playback audio quality when using mono
+    buffer_duration: 60ms # Audio buffer size for smooth playback
 
+# Media player for audio playback and announcements
 media_player:
   - platform: speaker
-    name: None
+    name: None  # Hidden from Home Assistant
     id: echo_media_player
     announcement_pipeline:
-      speaker: echo_speaker
-      format: WAV
-    codec_support_enabled: false
-    buffer_size: 6000
-    volume_min: 0.4
-    files:
-      - id: timer_finished_wave_file
+      speaker: echo_speaker  # Use our configured speaker
+      format: WAV          # WAV format for announcements
+    codec_support_enabled: false  # Disable codec support for simpler operation
+    buffer_size: 6000     # Large buffer for smooth playback
+    volume_min: 0.4       # Minimum volume level (40%)
+    files:  # Pre-loaded audio files for announcements
+      - id: timer_finished_wave_file  # Sound for timer completion
         file: https://github.com/esphome/wake-word-voice-assistants/raw/main/sounds/timer_finished.wav
     on_announcement:
       - if:
@@ -95,53 +109,65 @@ media_player:
       # button (push-to-talk) to start listening instead.
       - light.turn_off: led
 
+# Voice Assistant configuration for speech recognition and TTS
 voice_assistant:
-  id: va
-  micro_wake_word:
+  id: va  # Main voice assistant component
+  micro_wake_word:  # Enable wake word detection
   microphone:
-    microphone: echo_microphone
-    channels: 0
-    gain_factor: 4
-  media_player: echo_media_player
-  noise_suppression_level: 2
-  auto_gain: 31dBFS
-  # Start with wake word detection off
+    microphone: echo_microphone  # Use our configured microphone
+    channels: 0  # Single channel audio (mono)
+    gain_factor: 4  # Increase input sensitivity
+  media_player: echo_media_player  # For TTS output
+  noise_suppression_level: 2  # Medium noise suppression
+  auto_gain: 31dBFS  # Automatic gain control target
+  # Initial state: wake word detection disabled
   use_wake_word: false
+  # Event: Voice assistant starts listening
   on_listening:
-    - light.turn_on:
+    - light.turn_on:  # Blue pulsing light indicates listening
         id: led
         blue: 100%
         red: 0%
         green: 0%
         effect: "Slow Pulse"
+
+  # Event: Voice activity detection ends (finished speaking)
   on_stt_vad_end:
-    - light.turn_on:
+    - light.turn_on:  # Fast blue pulse indicates processing speech
         id: led
         blue: 100%
         red: 0%
         green: 0%
         effect: "Fast Pulse"
+
+  # Event: Text-to-speech starts playing
   on_tts_start:
-    - light.turn_on:
+    - light.turn_on:  # Solid blue light indicates speaking
         id: led
         blue: 100%
         red: 0%
         green: 0%
         brightness: 100%
         effect: none
+
+  # Event: Voice interaction ends
   on_end:
-    # Handle the "nevermind" case where there is no announcement
+    # Wait briefly to see if there will be a TTS response
     - wait_until:
         condition:
           - media_player.is_announcing:
         timeout: 0.5s
-    # Restart only mWW if enabled; streaming wake words automatically restart
+
+    # Restart wake word detection if:
+    # 1. Using on-device wake word
+    # 2. Wake word was previously enabled
     - if:
         condition:
          - and:
             - lambda: return id(wake_word_engine_location).state == "On device";
             - lambda: return id(wake_word_enabled);
         then:
+          # Wait for all audio processing to complete
           - wait_until:
               - and:
                   - not:
@@ -149,56 +175,69 @@ voice_assistant:
                   - not:
                       speaker.is_playing:
           - micro_wake_word.start:
-          - delay: 500ms
+          - delay: 500ms  # Brief delay before LED update
           - script.execute: reset_led
+  # Event: Error occurred during voice processing
   on_error:
-    - light.turn_on:
+    - light.turn_on:  # Red light indicates error
         id: led
         red: 100%
         green: 0%
         blue: 0%
         brightness: 100%
         effect: none
-    - delay: 2s
+    - delay: 2s  # Show error state for 2 seconds
     - script.execute: reset_led
+
+  # Event: Home Assistant connects
   on_client_connected:
-    - delay: 2s  # Give the api server time to settle
+    - delay: 2s  # Allow API server to initialize
     - script.execute: reset_led
+
+  # Event: Home Assistant disconnects
   on_client_disconnected:
-    - script.execute: stop_wake_word
+    - script.execute: stop_wake_word  # Stop listening when HA disconnects
+
+  # Event: Timer completion
   on_timer_finished:
-    - script.execute: stop_wake_word
+    - script.execute: stop_wake_word  # Stop listening during timer alert
+    # Wait for any ongoing recording to finish
     - wait_until:
         not:
           microphone.is_capturing:
-    - switch.turn_on: timer_ringing
-    - light.turn_on:
+    # Start timer alert sequence
+    - switch.turn_on: timer_ringing  # Triggers alert sound
+    - light.turn_on:  # Green pulsing light for timer
         id: led
         red: 0%
         green: 100%
         blue: 0%
         brightness: 100%
         effect: "Fast Pulse"
+    # Wait for user to acknowledge timer
     - wait_until:
         - switch.is_off: timer_ringing
+    # Clean up after timer
     - light.turn_off: led
     - switch.turn_off: timer_ringing
 
+# Physical button configuration and handlers
 binary_sensor:
-  # button does the following:
-  # double click - toggle wake word detection
-  # press and release - push to talk
+  # Main button functions:
+  # - Single click: Stop timer if ringing
+  # - Double click: Toggle wake word detection
+  # - Press and hold: Push-to-talk mode
   - platform: gpio
-    pin:
-      number: GPIO39
-      inverted: true
+    pin:  # Hardware button configuration
+      number: GPIO39  # Button pin on M5Stack Atom
+      inverted: true  # Button pulls pin low when pressed
     name: Button
-    disabled_by_default: true
-    entity_category: diagnostic
+    disabled_by_default: true  # Hidden from Home Assistant by default
+    entity_category: diagnostic  # Shows in device controls when enabled
     id: echo_button
-    filters:
-      - delayed_on: 10ms
-      - delayed_off: 10ms
+    filters:  # Debounce configuration
+      - delayed_on: 10ms   # Ignore brief button presses
+      - delayed_off: 10ms  # Ignore brief releases
     on_click:
       min_length: 50ms
       max_length: 350ms
@@ -279,40 +318,47 @@ binary_sensor:
                       - not:
                           media_player.is_announcing:
                 timeout: 10s
+# Built-in RGB LED configuration
 light:
-  - platform: esp32_rmt_led_strip
+  - platform: esp32_rmt_led_strip  # Hardware-specific LED driver
     id: led
-    name: None
+    name: None  # Hidden from Home Assistant
     disabled_by_default: true
-    entity_category: config
-    pin: GPIO27
-    default_transition_length: 0s
-    chipset: SK6812
-    num_leds: 1
-    rgb_order: grb
+    entity_category: config  # Shows in device controls when enabled
+    pin: GPIO27  # LED data pin on M5Stack Atom
+    default_transition_length: 0s  # Instant color changes
+    chipset: SK6812  # LED type used in M5Stack Atom
+    num_leds: 1     # Single RGB LED
+    rgb_order: grb  # Color channel ordering
     effects:
+      # Slow pulse effect for listening state
       - pulse:
           name: "Slow Pulse"
-          transition_length: 250ms
-          update_interval: 250ms
-          min_brightness: 50%
-          max_brightness: 100%
+          transition_length: 250ms  # Fade duration
+          update_interval: 250ms    # Time between updates
+          min_brightness: 50%       # Dim level
+          max_brightness: 100%      # Bright level
+      # Fast pulse effect for processing state
       - pulse:
           name: "Fast Pulse"
-          transition_length: 100ms
-          update_interval: 100ms
+          transition_length: 100ms  # Quicker fade
+          update_interval: 100ms    # Faster updates
           min_brightness: 50%
           max_brightness: 100%
 
+# Reusable scripts for common actions
 script:
+  # Reset LED state based on current wake word configuration
   - id: reset_led
     then:
       - if:
           condition:
+            # Check if using on-device wake word and light is enabled
             - lambda: return id(wake_word_engine_location).state == "On device";
             - switch.is_on: use_listen_light
             - micro_wake_word.is_running:
           then:
+            # Warm white color for on-device wake word
             - light.turn_on:
                 id: led
                 red: 100%
@@ -323,9 +369,11 @@ script:
           else:
             - if:
                 condition:
+                  # Check if using Home Assistant wake word and light is enabled
                   - lambda: return id(wake_word_engine_location).state != "On device";
                   - switch.is_on: use_listen_light
                 then:
+                  # Cyan color for Home Assistant wake word
                   - light.turn_on:
                       id: led
                       red: 0%
@@ -334,64 +382,77 @@ script:
                       brightness: 60%
                       effect: none
                 else:
+                  # Light disabled or wake word off
                   - light.turn_off: led
+  # Start wake word detection based on selected mode
   - id: start_wake_word
     then:
+      # Handle on-device wake word mode
       - if:
           condition:
             and:
               - not:
-                  - voice_assistant.is_running:
+                  - voice_assistant.is_running:  # Don't start if VA is active
               - lambda: return id(wake_word_engine_location).state == "On device";
           then:
-          # disabled unitll I can figure out why this keeps starting wake word detection
-            #- lambda: id(va).set_use_wake_word(false);
-            #- micro_wake_word.start:
-            - delay: 500ms
-            - script.execute: reset_led
+          # Note: Currently disabled due to wake word detection issue
+            - lambda: id(va).set_use_wake_word(false);  # Use local wake word
+            - micro_wake_word.start:  # Start local detection
+            - delay: 500ms  # Allow detection to start
+            - script.execute: reset_led  # Update LED state
+
+      # Handle Home Assistant wake word mode
       - if:
           condition:
             and:
               - not:
-                  - voice_assistant.is_running:
+                  - voice_assistant.is_running:  # Don't start if VA is active
               - lambda: return id(wake_word_engine_location).state == "In Home Assistant";
           then:
-            - lambda: id(va).set_use_wake_word(true);
-            - voice_assistant.start_continuous:
+            - lambda: id(va).set_use_wake_word(true);  # Use HA wake word
+            - voice_assistant.start_continuous:  # Start streaming to HA
+
+  # Stop wake word detection in current mode
   - id: stop_wake_word
     then:
+      # Stop Home Assistant wake word detection
       - if:
           condition:
             lambda: return id(wake_word_engine_location).state == "In Home Assistant";
           then:
             - lambda: id(va).set_use_wake_word(false);
-            - voice_assistant.stop:
-            - light.turn_off: led
+            - voice_assistant.stop:  # Stop streaming
+            - light.turn_off: led   # Turn off status LED
+
+      # Stop on-device wake word detection
       - if:
           condition:
             lambda: return id(wake_word_engine_location).state == "On device";
           then:
-            - micro_wake_word.stop:
-            - light.turn_off: led
-
-
+            - micro_wake_word.stop:  # Stop local detection
+            - light.turn_off: led   # Turn off status LED
+# Virtual switches for device control
 switch:
+  # Switch to control LED status indicator
   - platform: template
     name: Use listen light
     id: use_listen_light
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    entity_category: config
+    optimistic: true  # Update state immediately
+    restore_mode: RESTORE_DEFAULT_ON  # Turn on by default after reboot
+    entity_category: config  # Shows in device controls
     on_turn_on:
-      - script.execute: reset_led
+      - script.execute: reset_led  # Update LED when enabled
     on_turn_off:
-      - script.execute: reset_led
+      - script.execute: reset_led  # Update LED when disabled
+
+  # Switch for timer alert control
   - platform: template
     id: timer_ringing
     optimistic: true
-    restore_mode: ALWAYS_OFF
+    restore_mode: ALWAYS_OFF  # Never restore ringing state after reboot
+    # Handle stopping the timer alert
     on_turn_off:
-      # Turn off the repeat mode and disable the pause between playlist items
+      # Configure media player for single playback
       - lambda: |-
               id(echo_media_player)
                 ->make_call()
@@ -399,11 +460,13 @@ switch:
                 .set_announcement(true)
                 .perform();
               id(echo_media_player)->set_playlist_delay_ms(speaker::AudioPipelineType::ANNOUNCEMENT, 0);
-      # Stop playing the alarm
+      # Stop the alert sound
       - media_player.stop:
           announcement: true
+
+    # Handle starting the timer alert
     on_turn_on:
-      # Turn on the repeat mode and pause for 1000 ms between playlist items/repeats
+      # Configure media player for repeating playback
       - lambda: |-
             id(echo_media_player)
               ->make_call()
@@ -411,51 +474,63 @@ switch:
               .set_announcement(true)
               .perform();
             id(echo_media_player)->set_playlist_delay_ms(speaker::AudioPipelineType::ANNOUNCEMENT, 1000);
+      # Play the alert sound
       - media_player.speaker.play_on_device_media_file:
           media_file: timer_finished_wave_file
           announcement: true
-      - delay: 15min
+      - delay: 15min  # Auto-stop after 15 minutes
       - switch.turn_off: timer_ringing
 
+# Wake word mode selection
 select:
   - platform: template
     entity_category: config
     name: Wake word engine location
     id: wake_word_engine_location
-    optimistic: true
-    restore_value: true
-    options:
-      - In Home Assistant
-      - On device
-    initial_option: In Home Assistant
-    on_value:
+    optimistic: true  # Update state immediately
+    restore_value: true  # Remember selection after reboot
+    options:  # Available wake word modes
+      - In Home Assistant  # Use Home Assistant's wake word detection
+      - On device         # Use local wake word detection
+    initial_option: In Home Assistant  # Default to Home Assistant mode
+    on_value:  # Handle mode changes
+      # Switch to Home Assistant wake word
       - if:
           condition:
-            - lambda: return id(wake_word_engine_location).state == "In Home Assistant";
+            - and:
+              - lambda: return id(wake_word_engine_location).state == "In Home Assistant";
+              - lambda: return id(wake_word_enabled);
           then:
-            - micro_wake_word.stop:
-            - delay: 500ms
-            - lambda: |-
+            - micro_wake_word.stop:  # Stop local detection
+            - delay: 500ms          # Allow shutdown
+            - lambda: |-  # Enable HA wake word
                 id(va).set_use_wake_word(true);
                 id(wake_word_enabled) = true;
-            - voice_assistant.start_continuous:
+            - voice_assistant.start_continuous:  # Start streaming
+
+      # Switch to on-device wake word
       - if:
           condition:
-            lambda: return x == "On device";
+            - and:
+              - lambda: return x == "On device";
+              - lambda: return id(wake_word_enabled);
           then:
-            - lambda: |-
+            - lambda: |-  # Disable HA wake word
                 id(va).set_use_wake_word(false);
                 id(wake_word_enabled) = false;
-            - voice_assistant.stop:
-            - delay: 500ms
-            #- micro_wake_word.start:
+            - voice_assistant.stop:  # Stop streaming
+            - delay: 500ms         # Allow shutdown
+            - micro_wake_word.start:  # Start local detection
 
+# Local wake word configuration
 micro_wake_word:
+  # Handle wake word detection
   on_wake_word_detected:
-    - voice_assistant.start:
-        wake_word: "{{ return wake_word; }}"
-  vad:
+    - voice_assistant.start:  # Start voice assistant when wake word heard
+        wake_word: "{{ return wake_word; }}"  # Pass detected wake word
+  vad:  # Enable Voice Activity Detection
+  # Available wake word models
   models:
-    - model: okay_nabu
-    - model: hey_mycroft
-    - model: hey_jarvis
+    - model: okay_nabu     # "Okay Nabu" wake word
+    - model: hey_mycroft   # "Hey Mycroft" wake word
+    - model: hey_jarvis    # "Hey Jarvis" wake word
